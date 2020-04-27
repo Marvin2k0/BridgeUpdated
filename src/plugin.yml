@@ -1,0 +1,11 @@
+name: BridgePlugin_by_Marvin2k0
+author: Marvin2k0
+version: 1.0
+main: de.marvin2k0.bridgeplugin.Bridge
+commands:
+  bw:
+    permission: bw.admin
+  setlobby:
+    permission: bw.setlobby
+  lobby:
+    permission: bw.lobby
