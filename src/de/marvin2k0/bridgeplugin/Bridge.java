@@ -65,30 +65,26 @@ public class Bridge extends JavaPlugin implements CommandExecutor
             for (String str : Game.games)
             {
                 Game game = Game.getGameFromName(str);
-
-                if (game.getPlayers() == null)
-                    continue;
+                game.reset();
 
                 for (GamePlayer gp : game.getPlayers())
                 {
                     Bukkit.getConsoleSender().sendMessage(game.getName() + ": " + game.getPlayers());
                     Game.leave(game.getName(), gp.getPlayer());
                 }
-            }
 
-            for (String g : Game.games)
-            {
-                Map<String, Object> section = Game.getConfig().getConfigurationSection(g + ".spawns").getValues(false);
+                Map<String, Object> section = Game.getConfig().getConfigurationSection(game.getName() + ".spawns").getValues(false);
 
                 for (Map.Entry<String, Object> entry : section.entrySet())
                 {
-                    Game.getConfig().set(g + ".spawns." + entry.getKey() + ".members", new ArrayList<String>());
+                    Game.getConfig().set(game.getName() + ".spawns." + entry.getKey() + ".members", null);
+                    Game.saveConfig();
                 }
             }
 
             Game.saveConfig();
         }
-        catch (Exception e) {}
+        catch (Exception e) { e.printStackTrace();}
     }
 
     public void freeze(Player player)
@@ -103,6 +99,7 @@ public class Bridge extends JavaPlugin implements CommandExecutor
                 public void run()
                 {
                     freeze.remove(player);
+                    player.setFallDistance(0);
                 }
             }, 100L);
         }
@@ -139,6 +136,7 @@ public class Bridge extends JavaPlugin implements CommandExecutor
             String name = args[1];
             Game.Mode mode = Game.Mode.getFromString(args[2]);
             boolean withBed = Boolean.valueOf(args[3]);
+            System.out.println(withBed);
 
             if (mode == null)
             {
@@ -242,8 +240,6 @@ public class Bridge extends JavaPlugin implements CommandExecutor
 
             Game.leave(gamePlayers.get(player).getGame().getName(), player);
             gamePlayers.remove(player);
-
-            player.chat("/" + TextUtils.get("leavecommand", false));
 
             return true;
         }

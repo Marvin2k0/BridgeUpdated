@@ -44,6 +44,8 @@ public class LobbyCommand implements CommandExecutor
             config.set("lobby.pitch", pitch);
 
             Bridge.plugin.saveConfig();
+
+            player.sendMessage("§aLobby has been set!");
         }
         else if (label.equalsIgnoreCase("lobby"))
         {

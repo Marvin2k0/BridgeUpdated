@@ -4,10 +4,7 @@ import de.marvin2k0.bridgeplugin.Bridge;
 import de.marvin2k0.bridgeplugin.game.Game;
 import de.marvin2k0.bridgeplugin.game.GamePlayer;
 import de.marvin2k0.bridgeplugin.utils.TextUtils;
-import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.EntityType;
@@ -35,6 +32,13 @@ import java.util.Map;
 public class GameListener implements Listener
 {
     ArrayList<Location> blocks = new ArrayList<>();
+    ArrayList<Player> die = new ArrayList<>();
+
+    @EventHandler
+    public void onRespawn(PlayerDeathEvent event)
+    {
+
+    }
 
     @EventHandler
     public void onBed(BlockBreakEvent event)
@@ -42,18 +46,99 @@ public class GameListener implements Listener
         Player player = event.getPlayer();
         GamePlayer gp = null;
 
-        if ((gp = Bridge.gamePlayers.get(player)) != null)
+        if ((gp = Bridge.gamePlayers.get(player)) != null && gp.isInGame())
         {
+            String game = gp.getGame().getName();
+
             if (gp.getGame().getMode() == Game.Mode.ONE_ON_ONE)
             {
                 if (event.getBlock().getType() == Material.BED_BLOCK)
                 {
                     event.setCancelled(true);
-                    System.out.println("punkt für " + player.getName() + "'s team (" + gp.getTeam() + ")");
-                    //TODO: score team
+
+                    if (getTeamSpawn(gp).distance(event.getBlock().getLocation()) < 15)
+                    {
+                        player.sendMessage("§ceigenes bett");
+                        return;
+                    }
+
+                    int points = Game.getConfig().getInt(gp.getGame().getName() + ".spawns." + gp.getTeam() + ".points") + 1;
+
+                    if (points >= 5)
+                    {
+                        gp.getGame().win(gp.getTeam());
+                        return;
+                    }
+
+                    Game.getConfig().set(gp.getGame().getName() + ".spawns." + gp.getTeam() + ".points", points);
+                    Game.saveConfig();
+
+                    gp.getGame().sendMessage(TextUtils.get("score").replace("%player%", player.getDisplayName()).replace("%team%", gp.getTeam()));
+                    gp.getGame().tpToSpawn();
                 }
             }
+            else
+            {
+                Player player1 = null;
+                if (event.getBlock().getType() == Material.BED_BLOCK)
+                {
+                    event.setCancelled(true);
+
+                    if (getTeamSpawn(gp).distance(event.getBlock().getLocation()) < 15)
+                    {
+                        player.sendMessage("§ceigenes bett");
+                        return;
+                    }
+
+                    Map<String, Object> section = Game.getConfig().getConfigurationSection(gp.getGame().getName() + ".spawns").getValues(false);
+
+                    for (Map.Entry<String, Object> entry : section.entrySet())
+                    {
+                        for (String str : Game.getConfig().getStringList(gp.getGame().getName() + ".spawns." + entry.getKey() + ".members"))
+                        {
+                            Player p = Bukkit.getPlayer(str);
+                            FileConfiguration config = Game.getConfig();
+
+                            World world = Bukkit.getWorld(config.getString(gp.getGame().getName() + ".lobby." + ".world"));
+
+                            double x = config.getDouble(gp.getGame().getName() + ".spawns." + entry.getKey() + ".bed" + ".x");
+                            double y = config.getDouble(gp.getGame().getName() + ".spawns." + entry.getKey() + ".bed" + ".y");
+                            double z = config.getDouble(gp.getGame().getName() + ".spawns." + entry.getKey() + ".bed" + ".z");
+
+                            double yaw = config.getDouble(gp.getGame().getName() + ".spawns." + entry.getKey() + ".bed" + ".yaw");
+                            double pitch = config.getDouble(gp.getGame().getName() + ".spawns." + entry.getKey() + ".bed" + ".pitch");
+
+                            Location spawn = new Location(world, x, y, z, (float) yaw, (float) pitch);
+
+                            if (event.getBlock().getLocation().distance(spawn) <= 3)
+                            {
+                                die.add(p);
+                                player1 = p;
+                            }
+                        }
+                    }
+                }
+
+                gp.getGame().sendMessage("Bed from team " + Bridge.gamePlayers.get(player1).getTeam() + " was destroyed");
+            }
         }
+    }
+
+    public Location getTeamSpawn(GamePlayer gp)
+    {
+        String game = gp.getGame().getName();
+        String team = gp.getTeam();
+
+        World world = Bukkit.getWorld(Game.getConfig().getString(game + ".spawns." + team + ".world"));
+
+        double x = Game.getConfig().getDouble(game + ".spawns." + team + ".x");
+        double y = Game.getConfig().getDouble(game + ".spawns." + team + ".y");
+        double z = Game.getConfig().getDouble(game + ".spawns." + team + ".z");
+
+        double yaw = Game.getConfig().getDouble(game + ".spawns." + team + ".yaw");
+        double pitch = Game.getConfig().getDouble(game + ".spawns." + team + ".pitch");
+
+        return new Location(world, x, y, z, (float) yaw, (float) pitch);
     }
 
     @EventHandler
@@ -62,7 +147,6 @@ public class GameListener implements Listener
         if (Bridge.freeze.contains(event.getPlayer()))
         {
             event.setCancelled(true);
-            System.out.println(Bridge.freeze);
         }
     }
 
@@ -71,16 +155,53 @@ public class GameListener implements Listener
     {
         Player killer = event.getEntity().getKiller();
         Player player = event.getEntity().getPlayer();
+
         GamePlayer gp = null;
 
+        if (die.contains(player))
+        {
+            if ((gp = Bridge.gamePlayers.get(player)) != null)
+            {
+                List<String> members = Game.getConfig().getStringList(gp.getGame().getName() + ".spawns." + gp.getTeam() + ".members");
+
+                if (members.size() - 1 == 0)
+                {
+                    gp.getGame().sendMessage(TextUtils.get("teameliminated").replace("%team%", gp.getTeam()));
+                }
+
+                player.setGameMode(GameMode.SPECTATOR);
+                player.setHealth(player.getMaxHealth());
+                members.remove(player.getName());
+                Game.getConfig().set(gp.getGame().getName() + ".spawns." + gp.getTeam() + ".members", members);
+                Game.saveConfig();
+
+                List<String> players = Game.getConfig().getStringList(gp.getGame().getName() + ".members");
+                players.remove(player.getName());
+                Game.getConfig().set(gp.getGame().getName() + ".spawns." + gp.getTeam() + ".members", players);
+                Game.saveConfig();
+
+                player.teleport(getTeamSpawn(gp));
+            }
+        }
+        else
+        {
+            if ((gp = Bridge.gamePlayers.get(player)) != null)
+            {
+                player.setHealth(player.getMaxHealth());
+                player.teleport(getTeamSpawn(gp));
+            }
+        }
+
         if ((gp = Bridge.gamePlayers.get(player)) != null)
+        {
             if (killer == null)
             {
-                event.setDeathMessage(TextUtils.get("deathmessage_2").replace("%player%", player.getName()));
+                event.setDeathMessage(TextUtils.get("deathmessage_2").replace("%player%", player.getDisplayName()));
                 return;
             }
+        }
 
-            event.setDeathMessage(TextUtils.get("deathmessage").replace("%player%", player.getName()).replace("%killer%", killer.getName()));
+        event.setDeathMessage(TextUtils.get("deathmessage").replace("%player%", player.getDisplayName()).replace("%killer%", killer.getDisplayName()));
 
     }
 
@@ -201,6 +322,15 @@ public class GameListener implements Listener
                 return;
             }
 
+            for (Location loc : getSpawnLocs(gp.getGame().getName()))
+            {
+                if (event.getBlock().getLocation().distance(loc) <= 3)
+                {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+
             if (block == Material.TNT && !gp.isInLobby() && gp.isInGame())
             {
                 Location loc = event.getBlock().getLocation();
@@ -209,6 +339,7 @@ public class GameListener implements Listener
             }
 
             blocks.add(event.getBlock().getLocation());
+            gp.getGame().blocks.add(event.getBlock().getLocation());
         }
     }
 
@@ -220,6 +351,9 @@ public class GameListener implements Listener
 
         if ((gp = Bridge.gamePlayers.get(player)) != null)
         {
+            if (event.getBlock().getType() == Material.BED_BLOCK)
+                return;
+
             if (!blocks.contains(event.getBlock().getLocation()))
                 event.setCancelled(true);
         }
@@ -273,6 +407,34 @@ public class GameListener implements Listener
             {
                 if (event.getCause() == EntityDamageEvent.DamageCause.VOID)
                 {
+                    if (die.contains(player))
+                    {
+                        if ((gp = Bridge.gamePlayers.get(player)) != null)
+                        {
+                            List<String> members = Game.getConfig().getStringList(gp.getGame().getName() + ".spawns." + gp.getTeam() + ".members");
+
+                            if (members.size() - 1 == 0)
+                            {
+                                gp.getGame().sendMessage(TextUtils.get("teameliminated").replace("%team%", gp.getTeam()));
+                            }
+
+                            player.setGameMode(GameMode.SPECTATOR);
+                            player.setHealth(player.getMaxHealth());
+                            members.remove(player.getName());
+                            Game.getConfig().set(gp.getGame().getName() + ".spawns." + gp.getTeam() + ".members", members);
+                            Game.saveConfig();
+
+                            List<String> players = Game.getConfig().getStringList(gp.getGame().getName() + ".members");
+                            players.remove(player.getName());
+                            Game.getConfig().set(gp.getGame().getName() + ".spawns." + gp.getTeam() + ".members", players);
+                            Game.saveConfig();
+
+                            player.teleport(getTeamSpawn(gp));
+
+                            return;
+                        }
+                    }
+
                     Map<String, Object> section = Game.getConfig().getConfigurationSection(gp.getGame().getName() + ".spawns").getValues(false);
 
                     for (Map.Entry<String, Object> entry : section.entrySet())
@@ -295,12 +457,13 @@ public class GameListener implements Listener
 
                             if (p.getName().equals(player.getName()))
                             {
-                                //TODO: prüfen ob respawnen kann
                                 event.setCancelled(true);
                                 player.getInventory().clear();
                                 player.setHealth(player.getMaxHealth());
                                 player.setFallDistance(0);
                                 player.teleport(spawn);
+                                Game.getItemss(player);
+
 
                                 break;
                             }
@@ -310,7 +473,6 @@ public class GameListener implements Listener
             }
             else if ((gp = Bridge.gamePlayers.get(player)) != null && gp.isInLobby())
             {
-                System.out.println("damage in lobby");
                 event.setCancelled(true);
             }
         }
@@ -330,5 +492,30 @@ public class GameListener implements Listener
 
             gp.getGame().sendMessage(TextUtils.get("prefix") + player.getDisplayName() + " §7" + msg);
         }
+    }
+
+    public ArrayList<Location> getSpawnLocs(String game)
+    {
+        Map<String, Object> sections = Game.getConfig().getConfigurationSection(game + ".spawns").getValues(false);
+        ArrayList<Location> locs = new ArrayList<>();
+
+        Location spawn = null;
+
+        for (Map.Entry entry : sections.entrySet())
+        {
+            World world = Bukkit.getWorld(Game.getConfig().getString(game + ".lobby." + ".world"));
+
+            double x = Game.getConfig().getDouble(game + ".spawns." + entry.getKey() + ".x");
+            double y = Game.getConfig().getDouble(game + ".spawns." + entry.getKey() + ".y");
+            double z = Game.getConfig().getDouble(game + ".spawns." + entry.getKey() + ".z");
+
+            double yaw = Game.getConfig().getDouble(game + ".spawns." + entry.getKey() + ".yaw");
+            double pitch = Game.getConfig().getDouble(game + ".spawns." + entry.getKey() + ".pitch");
+
+            spawn = new Location(world, x, y, z, (float) yaw, (float) pitch);
+            locs.add(spawn);
+        }
+
+        return locs;
     }
 }

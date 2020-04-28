@@ -26,7 +26,7 @@ public class TextUtils
             e.printStackTrace();
         }
 
-        return ChatColor.translateAlternateColorCodes('&', msg);
+        return msg.contains("&") ? ChatColor.translateAlternateColorCodes('&', msg) : msg;
     }
 
     public static void setUpConfig(Plugin p)
@@ -48,7 +48,7 @@ public class TextUtils
         getConfig().addDefault("spawnremove", "&aSpawn %spawn% has been removed.");
         getConfig().addDefault("modes", "&cModes are: 1v1, 2v2, 4x1. You entered &4%input%");
         getConfig().addDefault("lobbyset", "&aLobby has been set!");
-        getConfig().addDefault("leavecommand", "me left");
+        getConfig().addDefault("leavecommand", "lobby");
         getConfig().addDefault("notingame", "&cYour are not in a game!");
         getConfig().addDefault("countdown", "&7Game starts in &c%seconds% seconds");
         getConfig().addDefault("bedplace", "&7Place the bed for team %team%.");
@@ -60,6 +60,12 @@ public class TextUtils
         getConfig().addDefault("deathmessage_2", "&c%player% &7died");
         getConfig().addDefault("teamfull", "&7This team is already full. Please choose another.");
         getConfig().addDefault("fight", "&6You can move in 5 seconds!");
+        getConfig().addDefault("win", "&7Team %team% has won the games");
+        getConfig().addDefault("win_title", "&7Team &a%team%");
+        getConfig().addDefault("win_sub", "&7won the game");
+        getConfig().addDefault("score", "&7%player% &7scored for team %team%");
+        getConfig().addDefault("teameliminated", "&7%team% was eliminated!");
+        getConfig().addDefault("started", "&cGame has already started");
 
         plugin.saveConfig();
     }

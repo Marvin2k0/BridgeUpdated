@@ -42,6 +42,12 @@ public class SignListener implements Listener
 
             if (game != null && Game.exists(game))
             {
+                if (Game.getGameFromName(game).hasStarted())
+                {
+                    player.sendMessage(TextUtils.get("started"));
+
+                    return;
+                }
                 Game.join(game, player);
             }
         }

@@ -2,6 +2,7 @@ package de.marvin2k0.bridgeplugin.game;
 
 import de.marvin2k0.bridgeplugin.Bridge;
 import de.marvin2k0.bridgeplugin.utils.TextUtils;
+import de.marvin2k0.bridgeplugin.utils.Title;
 import org.bukkit.*;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -13,6 +14,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -25,28 +27,98 @@ public class Game
 
     private ArrayList<GamePlayer> players;
     private ArrayList<String> teams;
+    public ArrayList<Location> blocks;
 
     private String name;
     private Mode mode;
     private boolean withBed;
+    public boolean hasStarted;
 
     public Game(String name, Mode mode, boolean bed)
     {
         this.name = name;
         this.mode = mode;
         this.withBed = bed;
+        this.hasStarted = false;
 
         players = new ArrayList<>();
         teams = new ArrayList<>();
+        blocks = new ArrayList<>();
     }
 
     public Game(String name)
     {
         this.name = name;
+
+        players = new ArrayList<>();
+        teams = new ArrayList<>();
+        blocks = new ArrayList<>();
+    }
+
+    public void setHasStarted(boolean flag)
+    {
+        getConfig().set(getName() + ".started", flag);
+        saveConfig();
+    }
+
+    public boolean hasStarted()
+    {
+        return getConfig().getBoolean(getName() + ".started");
+    }
+
+    public void reset()
+    {
+        setHasStarted(false);
+        try
+        {
+            if (blocks != null && !blocks.isEmpty())
+            {
+                for (Location loc : blocks)
+                {
+                    loc.getBlock().setType(Material.AIR);
+                }
+
+                Iterator it = blocks.iterator();
+
+                while (it.hasNext())
+                {
+                    it.remove();
+                }
+            }
+
+            if (getConfig().isSet(getName() + ".spawns"))
+            {
+                Map<String, Object> section = Game.getConfig().getConfigurationSection(getName() + ".spawns").getValues(false);
+
+                for (Map.Entry<String, Object> entry : section.entrySet())
+                {
+                    System.out.println(entry.getKey());
+                    Game.getConfig().set(getName() + ".spawns." + entry.getKey() + ".points", 0);
+                    Game.saveConfig();
+                }
+            }
+        }
+        catch (Exception e) {}
+    }
+
+    public void win(String team)
+    {
+        sendMessage(TextUtils.get("win").replace("%team%", team));
+
+        for (GamePlayer gp : getPlayers())
+        {
+            Title.send(gp.getPlayer(), TextUtils.get("win_title", false).replace("%team%", team), TextUtils.get("win_sub", false), 1, 5, 1);
+            leave(getName(), gp.getPlayer());
+        }
+
+
+        reset();
     }
 
     public void start()
     {
+        setHasStarted(true);
+
         Bukkit.getScheduler().scheduleSyncRepeatingTask(Bridge.plugin, new Runnable()
         {
             int timer = 20;
@@ -106,6 +178,8 @@ public class Game
                     Bukkit.getScheduler().cancelAllTasks();
 
                     tpToSpawn();
+
+                    return;
                 }
 
                 if (timer <= 5)
@@ -125,9 +199,13 @@ public class Game
 
     public void sendMessage(String msg)
     {
-        for (GamePlayer gp : getPlayers())
+        List<String> players = getConfig().getStringList(getName() + ".players");
+
+        System.out.println(players);
+
+        for (String str : players)
         {
-            gp.getPlayer().sendMessage(msg);
+            Bukkit.getPlayer(str).sendMessage(msg);
         }
     }
 
@@ -199,7 +277,8 @@ public class Game
 
     public boolean isWithBed()
     {
-        this.withBed = getConfig().getBoolean(getName() + ".bed");
+        if (getConfig().isSet(getName() + ".bed"))
+            this.withBed = getConfig().getBoolean(getName() + ".bed");
 
         return withBed;
     }
@@ -243,6 +322,9 @@ public class Game
 
         player.getInventory().clear();
         giveLobbyItems(player);
+        player.setGameMode(GameMode.SURVIVAL);
+        player.setHealth(player.getMaxHealth());
+        player.setFoodLevel(20);
 
         if (gameObj.getMode().getPlayers() == gameObj.getPlayers().size())
             gameObj.start();
@@ -274,6 +356,7 @@ public class Game
         player.setDisplayName(player.getName());
         player.setPlayerListName(player.getName());
         player.getInventory().clear();
+        player.chat("/" + TextUtils.get("leavecommand", false));
 
         saveConfig();
     }
@@ -322,6 +405,7 @@ public class Game
         config.set(game + ".spawns." + name + ".z", z);
         config.set(game + ".spawns." + name + ".yaw", yaw);
         config.set(game + ".spawns." + name + ".pitch", pitch);
+        config.set(game + ".spawns." + name + ".bed", true);
 
         saveConfig();
     }
@@ -383,14 +467,27 @@ public class Game
     public void getItems(Player player)
     {
         Map<String, Object> section = Bridge.plugin.config.getConfigurationSection("kit").getValues(false);
-        Inventory inv = Bukkit.createInventory(player, 36);
+        Inventory inv = player.getInventory();
 
         for (Map.Entry<String, Object> entry : section.entrySet())
         {
             inv.setItem(Integer.valueOf(entry.getKey()), new ItemStack(Material.getMaterial(entry.getValue().toString())));
         }
 
-        player.getInventory().setContents(inv.getContents());
+        player.updateInventory();
+    }
+
+    public static void getItemss(Player player)
+    {
+        Map<String, Object> section = Bridge.plugin.config.getConfigurationSection("kit").getValues(false);
+        Inventory inv = player.getInventory();
+
+        for (Map.Entry<String, Object> entry : section.entrySet())
+        {
+            inv.setItem(Integer.valueOf(entry.getKey()), new ItemStack(Material.getMaterial(entry.getValue().toString())));
+        }
+
+        player.updateInventory();
     }
 
     public static boolean exists(String name)
