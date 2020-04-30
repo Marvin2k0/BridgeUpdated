@@ -1,6 +1,9 @@
 package de.marvin2k0.bridgeplugin.game;
 
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.scoreboard.Team;
 
 import java.util.List;
 
@@ -47,10 +50,17 @@ public class GamePlayer
         return team;
     }
 
-    public void setTeam(String team)
+    public void setTeam(String team, String color)
     {
         if (getTeam() != null)
         {
+            Scoreboard scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
+            Team teamscorebard = scoreboard.registerNewTeam(team);
+            teamscorebard.setPrefix(color);
+            teamscorebard.addPlayer(player);
+
+            //game.setScoreBoard(scoreboard);
+
             List<String> old = Game.getConfig().getStringList(game.getName() + ".spawns." + getTeam() + ".members");
             old.remove(player.getName());
 

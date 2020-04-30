@@ -59,13 +59,21 @@ public class TextUtils
         getConfig().addDefault("deathmessage", "&c%player% &7has been killed by &c%killer%");
         getConfig().addDefault("deathmessage_2", "&c%player% &7died");
         getConfig().addDefault("teamfull", "&7This team is already full. Please choose another.");
-        getConfig().addDefault("fight", "&6You can move in 5 seconds!");
+        getConfig().addDefault("countdown_2", "&6You can move in %time% seconds!");
+        getConfig().addDefault("fight", "&cFight!");
         getConfig().addDefault("win", "&7Team %team% has won the games");
         getConfig().addDefault("win_title", "&7Team &a%team%");
         getConfig().addDefault("win_sub", "&7won the game");
         getConfig().addDefault("score", "&7%player% &7scored for team %team%");
         getConfig().addDefault("teameliminated", "&7%team% was eliminated!");
         getConfig().addDefault("started", "&cGame has already started");
+        getConfig().addDefault("spawnerstick", "&cRight-click &7with that stick to set the spawner");
+        getConfig().addDefault("irondur", 1);
+        getConfig().addDefault("golddur", 4);
+        getConfig().addDefault("diadur", 30);
+        getConfig().addDefault("scoreboard_title", "&6Points");
+        getConfig().addDefault("inventoryfull", "&7Your inventory is full!");
+        getConfig().addDefault("beddestroyed", "&7Team %team%'s bed was destroyed");
 
         plugin.saveConfig();
     }

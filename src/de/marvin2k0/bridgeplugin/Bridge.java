@@ -7,6 +7,7 @@ import de.marvin2k0.bridgeplugin.listener.PlaceBedListener;
 import de.marvin2k0.bridgeplugin.listener.SignListener;
 import de.marvin2k0.bridgeplugin.utils.TextUtils;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -14,6 +15,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -26,6 +28,7 @@ public class Bridge extends JavaPlugin implements CommandExecutor
 {
     public static HashMap<Player, GamePlayer> gamePlayers = new HashMap<>();
     public static HashMap<Player, String> placeBed = new HashMap<>();
+    public static HashMap<Player, String> placeSpawner = new HashMap<>();
     public static ArrayList<Player> freeze = new ArrayList<>();
     public static Bridge plugin;
 
@@ -45,6 +48,7 @@ public class Bridge extends JavaPlugin implements CommandExecutor
         getServer().getPluginManager().registerEvents(new PlaceBedListener(), this);
         getServer().getPluginManager().registerEvents(new SignListener(), this);
         getServer().getPluginManager().registerEvents(new GameListener(), this);
+        getServer().getPluginManager().registerEvents(new Game(), this);
 
         Map<String, Object> section = Game.getConfig().getConfigurationSection("").getValues(false);
 
@@ -91,7 +95,26 @@ public class Bridge extends JavaPlugin implements CommandExecutor
     {
         if (freeze.contains(player))
         {
-            player.sendMessage(TextUtils.get("fight"));
+            Bukkit.getScheduler().scheduleSyncRepeatingTask(this, new Runnable()
+            {
+                int timer = 5;
+
+                @Override
+                public void run()
+                {
+                    if (timer == 0)
+                    {
+                        player.sendMessage(TextUtils.get("fight"));
+                        timer = -1;
+                        return;
+                    }
+                    else if (timer == -1)
+                        return;
+
+                    player.sendMessage(TextUtils.get("countdown_2").replace("%time%", timer + ""));
+                    timer--;
+                }
+            }, 0, 20);
 
             Bukkit.getScheduler().scheduleSyncDelayedTask(this, new Runnable()
             {
@@ -192,6 +215,7 @@ public class Bridge extends JavaPlugin implements CommandExecutor
             }
 
             Game.Mode mode = Game.Mode.getFromString(Game.getConfig().getString(args[1] + ".mode"));
+
             int left = Game.getConfig().getInt(args[1] + ".spawn") - 1;
 
             if (left < 0 && !Game.getConfig().isSet(args[1] + ".spawns." + args[2]))
@@ -213,11 +237,8 @@ public class Bridge extends JavaPlugin implements CommandExecutor
                 Game.setSpawn(args[1], player.getLocation(), args[2]);
                 player.sendMessage(TextUtils.get("spawnset").replace("%spawn%", args[2]).replace("%left%", Game.getConfig().getInt(args[1] + ".spawn") + ""));
 
-                if (Game.getConfig().getBoolean(args[1] + ".bed"))
-                {
-                    player.sendMessage(TextUtils.get("bedplace").replace("%team%", args[2]));
-                    Game.setBed(args[1], args[2], player);
-                }
+                player.sendMessage(TextUtils.get("bedplace").replace("%team%", args[2]));
+                Game.setBed(args[1], args[2], player);
 
                 return true;
             }
@@ -282,6 +303,53 @@ public class Bridge extends JavaPlugin implements CommandExecutor
             }
 
             player.sendMessage("§aKit saved!");
+
+            return true;
+        }
+
+        else if (args[0].equalsIgnoreCase("spawner"))
+        {
+            if (!(args.length >= 2))
+            {
+                player.sendMessage("§cUsage: /bw spawner <game> <iron|gold|diamond>");
+
+                return true;
+            }
+
+            if (!Game.exists(args[1]))
+            {
+                player.sendMessage(TextUtils.get("nogame").replace("%game%", args[1]));
+
+                return true;
+            }
+
+            ItemStack item = new ItemStack(Material.BLAZE_ROD);
+            ItemMeta meta = item.getItemMeta();
+
+            if (args[2].equalsIgnoreCase("iron"))
+            {
+                meta.setDisplayName("§fClick for Iron");
+            }
+            else if (args[2].equalsIgnoreCase("gold"))
+            {
+                meta.setDisplayName("§6Click for Gold");
+            }
+            else if (args[2].equalsIgnoreCase("diamond") || args[2].equalsIgnoreCase("dia"))
+            {
+                meta.setDisplayName("§bClick for Diamond");
+            }
+            else
+            {
+                player.sendMessage("§cUsage: /bw spawner <game> <iron|gold|diamond>");
+
+                return true;
+            }
+
+            item.setItemMeta(meta);
+
+            player.getInventory().addItem(item);
+            player.sendMessage(TextUtils.get("spawnerstick"));
+            placeSpawner.put(player, args[1]);
 
             return true;
         }

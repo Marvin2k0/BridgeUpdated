@@ -1,15 +1,22 @@
 package de.marvin2k0.bridgeplugin.game;
 
+import com.avaje.ebeaninternal.server.text.csv.CsvUtilReader;
 import de.marvin2k0.bridgeplugin.Bridge;
+import de.marvin2k0.bridgeplugin.listener.GameListener;
 import de.marvin2k0.bridgeplugin.utils.TextUtils;
 import de.marvin2k0.bridgeplugin.utils.Title;
 import org.bukkit.*;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.scoreboard.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,7 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class Game
+public class Game implements Listener
 {
     public static ArrayList<String> games = new ArrayList<>();
 
@@ -27,12 +34,17 @@ public class Game
 
     private ArrayList<GamePlayer> players;
     private ArrayList<String> teams;
-    public ArrayList<Location> blocks;
+    public ArrayList<Location> bloecke = new ArrayList<>();
+    private Scoreboard board;
 
     private String name;
     private Mode mode;
     private boolean withBed;
     public boolean hasStarted;
+
+    public Game()
+    {
+    }
 
     public Game(String name, Mode mode, boolean bed)
     {
@@ -43,7 +55,6 @@ public class Game
 
         players = new ArrayList<>();
         teams = new ArrayList<>();
-        blocks = new ArrayList<>();
     }
 
     public Game(String name)
@@ -52,7 +63,6 @@ public class Game
 
         players = new ArrayList<>();
         teams = new ArrayList<>();
-        blocks = new ArrayList<>();
     }
 
     public void setHasStarted(boolean flag)
@@ -61,30 +71,84 @@ public class Game
         saveConfig();
     }
 
+    public void saveBlock(Location loc)
+    {
+        String random = System.currentTimeMillis() + "";
+
+        getConfig().set(getName() + ".blocks." + random + ".world", loc.getWorld().getName());
+        getConfig().set(getName() + ".blocks." + random + ".x", loc.getX());
+        getConfig().set(getName() + ".blocks." + random + ".y", loc.getY());
+        getConfig().set(getName() + ".blocks." + random + ".z", loc.getZ());
+
+        saveConfig();
+    }
+
+    public ArrayList<Location> getBlock()
+    {
+        if (getConfig().getConfigurationSection(getName() + ".blocks") == null) return new ArrayList<Location>();
+
+        Map<String, Object> sections = getConfig().getConfigurationSection(getName() + ".blocks").getValues(false);
+
+        ArrayList<Location> locs = new ArrayList<>();
+
+        for (Map.Entry entry : sections.entrySet())
+        {
+            World world = Bukkit.getWorld(Game.getConfig().getString(getName() + ".blocks." + entry.getKey() + ".world"));
+
+            double x = Game.getConfig().getDouble(getName() + ".blocks." + entry.getKey() + ".x");
+            double y = Game.getConfig().getDouble(getName() + ".blocks." + entry.getKey() + ".y");
+            double z = Game.getConfig().getDouble(getName() + ".blocks." + entry.getKey() + ".z");
+
+            locs.add(new Location(world, x, y, z));
+        }
+
+        return locs;
+    }
+
     public boolean hasStarted()
     {
         return getConfig().getBoolean(getName() + ".started");
     }
 
+    public void checkWin(String from)
+    {
+        Map<String, Object> section = getConfig().getConfigurationSection(getName() + ".spawns").getValues(false);
+        List<String> activeTeams = new ArrayList<>();
+
+        for (Map.Entry<String, Object> entry : section.entrySet())
+        {
+            List<String> members = getConfig().getStringList(getName() + ".spawns." + entry.getKey() + ".members");
+
+            if (members.size() >= 1)
+            {
+                activeTeams.add(entry.getKey());
+            }
+        }
+
+        if (activeTeams.size() == 1)
+        {
+            resetBlocks();
+            reset();
+            win(activeTeams.get(0));
+            System.out.println("win wiel nur noch ein team");
+            return;
+        }
+        else if (activeTeams.size() == 0)
+        {
+            win("win weil kein team mehr");
+            resetBlocks();
+            reset();
+        }
+    }
+
     public void reset()
     {
         setHasStarted(false);
+        GameListener.des.clear();
+        ArrayList<Location> locs = new ArrayList<>();
+
         try
         {
-            if (blocks != null && !blocks.isEmpty())
-            {
-                for (Location loc : blocks)
-                {
-                    loc.getBlock().setType(Material.AIR);
-                }
-
-                Iterator it = blocks.iterator();
-
-                while (it.hasNext())
-                {
-                    it.remove();
-                }
-            }
 
             if (getConfig().isSet(getName() + ".spawns"))
             {
@@ -92,42 +156,101 @@ public class Game
 
                 for (Map.Entry<String, Object> entry : section.entrySet())
                 {
-                    System.out.println(entry.getKey());
                     Game.getConfig().set(getName() + ".spawns." + entry.getKey() + ".points", 0);
                     Game.saveConfig();
+                    System.out.println("points to 0");
                 }
             }
         }
-        catch (Exception e) {}
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+        Game.saveConfig();
     }
 
     public void win(String team)
     {
+        reset();
         sendMessage(TextUtils.get("win").replace("%team%", team));
 
         for (GamePlayer gp : getPlayers())
         {
+            if (Bridge.freeze.contains(gp.getPlayer()))
+            {
+                Bridge.freeze.remove(gp.getPlayer());
+            }
             Title.send(gp.getPlayer(), TextUtils.get("win_title", false).replace("%team%", team), TextUtils.get("win_sub", false), 1, 5, 1);
             leave(getName(), gp.getPlayer());
         }
+    }
 
+    static Scoreboard scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
+    static Objective objective = scoreboard.registerNewObjective("aaa", "bbb");
 
-        reset();
+    static Team team1 = scoreboard.registerNewTeam("1");
+    static Team team2 = scoreboard.registerNewTeam("2");
+    static Team team3 = scoreboard.registerNewTeam("3");
+    static Team team4 = scoreboard.registerNewTeam("4");
+
+    public void setScoreboards()
+    {
+        String[] colors = {"§0", "§c", "§e", "§9"};
+        boolean bed = getConfig().getBoolean(getName() + ".bed");
+
+        objective.setDisplayName(bed ? TextUtils.get("scoreboard_title") : TextUtils.get("prefix"));
+        objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+
+        team1.setPrefix("§0");
+        team2.setPrefix("§c");
+        team3.setPrefix("§e");
+        team4.setPrefix("§9");
+
+        Map<String, Object> section = getConfig().getConfigurationSection(getName() + ".spawns").getValues(false);
+        int i = 0;
+
+        for (Map.Entry<String, Object> entry : section.entrySet())
+        {
+            int points = getConfig().getInt(getName() + ".spawns." + entry.getKey() + ".points");
+
+            objective.getScore(colors[i] + "Team " + entry.getKey()).setScore(points);
+            i++;
+        }
+
+        List<String> playerList = getConfig().getStringList(getName() + ".players");
+
+        for (String str : playerList)
+        {
+            Player player = Bukkit.getPlayer(str);
+            GamePlayer gp = Bridge.gamePlayers.get(player);
+            String team = gp.getTeam();
+
+            if (team.equals("1"))
+                team1.addPlayer(player);
+            else if (team.equals("2"))
+                team2.addPlayer(player);
+            else if (team.equals("3"))
+                team3.addPlayer(player);
+            else if (team.equals("4"))
+                team4.addPlayer(player);
+
+            player.setScoreboard(scoreboard);
+        }
     }
 
     public void start()
     {
-        setHasStarted(true);
-
         Bukkit.getScheduler().scheduleSyncRepeatingTask(Bridge.plugin, new Runnable()
         {
-            int timer = 20;
+            int timer = 5;
 
             @Override
             public void run()
             {
                 if (timer == 0)
                 {
+                    setHasStarted(true);
+
                     List<String> p = getConfig().getStringList(name + ".players");
 
                     for (String str : p)
@@ -137,14 +260,28 @@ public class Game
 
                         if (gp.getTeam() == null)
                         {
-                            System.out.println("not in a team");
                             Map<String, Object> section2 = Game.getConfig().getConfigurationSection(getName() + ".spawns").getValues(false);
 
                             for (Map.Entry<String, Object> entry2 : section2.entrySet())
                             {
                                 List<String> members = getConfig().getStringList(getName() + ".spawns." + entry2.getKey() + ".members");
 
-                                if (members.size() < getMode().getPlayersPerTeam() + 1)
+                                try
+                                {
+                                    getConfig().load(file);
+                                }
+                                catch (IOException e)
+                                {
+                                    e.printStackTrace();
+                                }
+                                catch (InvalidConfigurationException e)
+                                {
+                                    e.printStackTrace();
+                                }
+
+                                System.out.println(entry2.getKey() + " " + members.size() + "/" + (getMode().getPlayersPerTeam()));
+
+                                if (members.size() < (getMode().getPlayersPerTeam()))
                                 {
                                     String color = "§7";
 
@@ -164,11 +301,13 @@ public class Game
                                             break;
                                     }
 
-                                    gp.setTeam(entry2.getKey());
+                                    gp.setTeam(entry2.getKey(), color);
                                     gp.getPlayer().setDisplayName(color + gp.getPlayer().getName());
                                     gp.getPlayer().setPlayerListName(color + gp.getPlayer().getName());
                                     gp.getPlayer().sendMessage(TextUtils.get("joinedteam").replace("%team%", entry2.getKey()));
                                     gp.getPlayer().closeInventory();
+                                    System.out.println(gp.getPlayer() + " hatt kein team jetzt in " + entry2.getKey());
+
                                     break;
                                 }
                             }
@@ -179,6 +318,9 @@ public class Game
 
                     tpToSpawn();
 
+                    activateSpawners();
+                    setScoreboards();
+                    checkWin("start");
                     return;
                 }
 
@@ -197,11 +339,121 @@ public class Game
         }, 0, 20);
     }
 
+    private void activateSpawners()
+    {
+        if (getConfig().isSet(getName() + ".spawner.iron"))
+        {
+            Bukkit.getScheduler().scheduleSyncRepeatingTask(Bridge.plugin, new Runnable()
+            {
+                @Override
+                public void run()
+                {
+                    checkWin("iron spawner");
+                    if (!hasStarted())
+                        Bukkit.getScheduler().cancelAllTasks();
+
+                    Map<String, Object> section = getConfig().getConfigurationSection(getName() + ".spawner.iron").getValues(false);
+
+                    for (Map.Entry<String, Object> entry : section.entrySet())
+                    {
+                        String world = getConfig().getString(getName() + ".spawner.iron." + entry.getKey() + ".world");
+                        double x = getConfig().getDouble(getName() + ".spawner.iron." + entry.getKey() + ".x");
+                        double y = getConfig().getDouble(getName() + ".spawner.iron." + entry.getKey() + ".y");
+                        double z = getConfig().getDouble(getName() + ".spawner.iron." + entry.getKey() + ".z");
+
+                        Location loc = new Location(Bukkit.getWorld(world), x, y, z);
+
+                        Bukkit.getWorld(world).dropItemNaturally(loc, new ItemStack(Material.IRON_INGOT));
+                    }
+
+                    checkWin("iron spawner 2");
+                }
+            }, Long.valueOf(TextUtils.get("irondur", false)) * 20, Long.valueOf(TextUtils.get("irondur", false)) * 20);
+        }
+
+        if (getConfig().isSet(getName() + ".spawner.gold"))
+        {
+            Bukkit.getScheduler().scheduleSyncRepeatingTask(Bridge.plugin, new Runnable()
+            {
+                @Override
+                public void run()
+                {
+                    checkWin("gold spawner");
+
+                    if (!hasStarted())
+                        Bukkit.getScheduler().cancelAllTasks();
+
+                    Map<String, Object> section = getConfig().getConfigurationSection(getName() + ".spawner.gold").getValues(false);
+
+                    for (Map.Entry<String, Object> entry : section.entrySet())
+                    {
+                        String world = getConfig().getString(getName() + ".spawner.gold." + entry.getKey() + ".world");
+                        double x = getConfig().getDouble(getName() + ".spawner.gold." + entry.getKey() + ".x");
+                        double y = getConfig().getDouble(getName() + ".spawner.gold." + entry.getKey() + ".y");
+                        double z = getConfig().getDouble(getName() + ".spawner.gold." + entry.getKey() + ".z");
+
+                        Location loc = new Location(Bukkit.getWorld(world), x, y, z);
+
+                        Bukkit.getWorld(world).dropItemNaturally(loc, new ItemStack(Material.GOLD_INGOT));
+                    }
+                }
+            }, Long.valueOf(TextUtils.get("golddur", false)) * 20, Long.valueOf(TextUtils.get("golddur", false)) * 20);
+        }
+
+        if (getConfig().isSet(getName() + ".spawner.dia"))
+        {
+            Bukkit.getScheduler().scheduleSyncRepeatingTask(Bridge.plugin, new Runnable()
+            {
+                @Override
+                public void run()
+                {
+                    checkWin("diamond spawner");
+                    if (!hasStarted())
+                        Bukkit.getScheduler().cancelAllTasks();
+
+                    Map<String, Object> section = getConfig().getConfigurationSection(getName() + ".spawner.dia").getValues(false);
+
+                    for (Map.Entry<String, Object> entry : section.entrySet())
+                    {
+                        String world = getConfig().getString(getName() + ".spawner.dia." + entry.getKey() + ".world");
+                        double x = getConfig().getDouble(getName() + ".spawner.dia." + entry.getKey() + ".x");
+                        double y = getConfig().getDouble(getName() + ".spawner.dia." + entry.getKey() + ".y");
+                        double z = getConfig().getDouble(getName() + ".spawner.dia." + entry.getKey() + ".z");
+
+                        Location loc = new Location(Bukkit.getWorld(world), x, y, z);
+
+                        Bukkit.getWorld(world).dropItemNaturally(loc, new ItemStack(Material.DIAMOND));
+                    }
+                    checkWin("diamond spawner");
+                }
+            }, Long.valueOf(TextUtils.get("diadur", false)) * 20, Long.valueOf(TextUtils.get("diadur", false)) * 20);
+        }
+    }
+
+    public void resetBlocks()
+    {
+        for (Location loc : getBlock())
+            loc.getBlock().setType(Material.AIR);
+        /*
+        for (Location loc : bloecke)
+        {
+            loc.getBlock().setType(Material.AIR);
+        }
+
+
+
+        Iterator it = bloecke.iterator();
+
+        while (it.hasNext())
+        {
+            System.out.println("blocks " + bloecke);
+            it.remove();
+        }*/
+    }
+
     public void sendMessage(String msg)
     {
         List<String> players = getConfig().getStringList(getName() + ".players");
-
-        System.out.println(players);
 
         for (String str : players)
         {
@@ -267,6 +519,8 @@ public class Game
 
     public Mode getMode()
     {
+        this.mode = getConfig().getString(getName() + ".mode") == null ? mode : Mode.getFromString(getConfig().getString(getName() + ".mode"));
+
         return mode;
     }
 
@@ -300,8 +554,6 @@ public class Game
     public static void join(String game, Player player)
     {
         /* When already in the game */
-        if (Bridge.gamePlayers.containsKey(player))
-            return;
 
         GamePlayer gp = new GamePlayer(player, Game.getGameFromName(game));
         gp.setInLobby(true);
@@ -318,7 +570,7 @@ public class Game
 
         player.teleport(gameObj.getLobby());
 
-        gameObj.sendMessage(TextUtils.get("gamejoin").replace("%player%", player.getName()));
+        gameObj.sendMessage(TextUtils.get("gamejoin").replace("%player%", player.getName()) + " (" + players.size() + "/" + gp.getGame().getMode().getPlayers() + ")");
 
         player.getInventory().clear();
         giveLobbyItems(player);
@@ -356,6 +608,8 @@ public class Game
         player.setDisplayName(player.getName());
         player.setPlayerListName(player.getName());
         player.getInventory().clear();
+        player.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
+        player.setGameMode(GameMode.SURVIVAL);
         player.chat("/" + TextUtils.get("leavecommand", false));
 
         saveConfig();
@@ -456,7 +710,11 @@ public class Game
                 player.getInventory().clear();
                 player.setHealth(player.getMaxHealth());
                 player.setFoodLevel(20);
-                getItems(player);
+
+                if (getConfig().getBoolean(getName() + ".bed"))
+                {
+                    getItems(player);
+                }
 
                 Bridge.freeze.add(player);
                 Bridge.plugin.freeze(player);
@@ -466,6 +724,9 @@ public class Game
 
     public void getItems(Player player)
     {
+        if (!Bridge.plugin.config.isSet("kit"))
+            return;
+
         Map<String, Object> section = Bridge.plugin.config.getConfigurationSection("kit").getValues(false);
         Inventory inv = player.getInventory();
 
@@ -479,15 +740,18 @@ public class Game
 
     public static void getItemss(Player player)
     {
-        Map<String, Object> section = Bridge.plugin.config.getConfigurationSection("kit").getValues(false);
-        Inventory inv = player.getInventory();
-
-        for (Map.Entry<String, Object> entry : section.entrySet())
+        if (Bridge.plugin.config.isSet("kit"))
         {
-            inv.setItem(Integer.valueOf(entry.getKey()), new ItemStack(Material.getMaterial(entry.getValue().toString())));
-        }
+            Map<String, Object> section = Bridge.plugin.config.getConfigurationSection("kit").getValues(false);
+            Inventory inv = Bukkit.createInventory(null, 36);
 
-        player.updateInventory();
+            for (Map.Entry<String, Object> entry : section.entrySet())
+            {
+                inv.setItem(Integer.valueOf(entry.getKey()), new ItemStack(Material.getMaterial(entry.getValue().toString())));
+            }
+
+            player.getInventory().setContents(inv.getContents());
+        }
     }
 
     public static boolean exists(String name)
@@ -528,6 +792,7 @@ public class Game
             this.name = name;
             this.players = players;
             this.teams = teams;
+            this.playersPerTeam = playersPerTeam;
         }
 
         public String getName()
