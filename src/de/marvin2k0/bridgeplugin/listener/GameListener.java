@@ -54,7 +54,7 @@ public class GameListener implements Listener
 
                     if (getTeamSpawn(gp).distance(event.getBlock().getLocation()) < 15)
                     {
-                        player.sendMessage("§ceigenes bett");
+                        player.sendMessage(TextUtils.get("ownbed"));
                         return;
                     }
 
@@ -74,11 +74,6 @@ public class GameListener implements Listener
                     gp.getGame().tpToSpawn();
                     gp.getGame().resetBlocks();
                     gp.getGame().setScoreboards();
-                    /*TODO
-                    gp.getGame().setScoreBoard();
-                    gp.getGame().setTeamScoreBoard(Game.teamsscoreboard);
-
-                     */
                 }
             }
             else
@@ -245,7 +240,7 @@ public class GameListener implements Listener
             if (from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ())
                 return;
 
-            event.setCancelled(true);
+            event.setTo(event.getFrom());
         }
     }
 
@@ -341,7 +336,7 @@ public class GameListener implements Listener
             {
                 String name = player.getItemInHand().getItemMeta().getDisplayName();
                 String game = Bridge.placeSpawner.get(player);
-                Location loc = player.getLocation();
+                Location loc = event.getClickedBlock().getLocation();
                 String random = System.currentTimeMillis() + "";
 
                 if (name.equals("§fClick for Iron"))
@@ -440,7 +435,7 @@ public class GameListener implements Listener
 
         s.setItem(10, createItem(Material.SANDSTONE, 4, null, new int[]{0}, "§l§f2 iron"));
         s.setItem(19, createItem(Material.ENDER_STONE, 4, null, new int[]{0}, "§l§f8 iron"));
-        s.setItem(28, createItem(Material.LOG, 4, null, new int[]{0}, "§l§64 gold"));
+        s.setItem(28, createItem(Material.WOOD, 4, null, new int[]{0}, "§l§64 gold"));
         s.setItem(11, createItem(Material.STICK, 1, new Enchantment[]{Enchantment.KNOCKBACK}, new int[]{1}, "§l§f5 iron"));
         s.setItem(20, createItem(Material.STICK, 1, new Enchantment[]{Enchantment.KNOCKBACK, Enchantment.DAMAGE_ALL}, new int[]{1, 1}, "§l§f10 iron"));
         s.setItem(29, createItem(Material.STICK, 1, new Enchantment[]{Enchantment.KNOCKBACK, Enchantment.DAMAGE_ALL}, new int[]{1, 2}, "§l§65 gold"));
@@ -475,6 +470,7 @@ public class GameListener implements Listener
     {
         Player player = event.getPlayer();
         GamePlayer gp = null;
+
 
         if ((gp = Bridge.gamePlayers.get(player)) != null && gp.isInGame() && event.getRightClicked() instanceof Villager)
         {
@@ -748,18 +744,29 @@ public class GameListener implements Listener
 
             for (Location loc : getSpawnLocs(gp.getGame().getName()))
             {
-                if (event.getBlock().getLocation().distance(loc) <= 3)
+                if (event.getBlock().getLocation().distance(loc) <= 2)
                 {
                     event.setCancelled(true);
                     return;
                 }
             }
 
+            for (Location loc : getBedLocs(gp.getGame().getName()))
+            {
+                if (event.getBlock().getLocation().distance(loc) <= 3 && Game.getConfig().getBoolean(gp.getGame().getName() + ".bed"))
+                {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+
+
             if (block == Material.TNT && !gp.isInLobby() && gp.isInGame())
             {
                 Location loc = event.getBlock().getLocation();
                 loc.getWorld().spawn(loc, TNTPrimed.class);
                 event.setCancelled(true);
+                removeItem(1, Material.TNT, (byte) 0, player);
             }
         }
     }
@@ -786,9 +793,12 @@ public class GameListener implements Listener
         Player player = event.getPlayer();
         GamePlayer gp = null;
 
-        if ((gp = Bridge.gamePlayers.get(player)) != null && gp.isInLobby())
+        if ((gp = Bridge.gamePlayers.get(player)) != null && (gp.isInLobby() || gp.isInGame()))
         {
-            event.setCancelled(true);
+            if (Game.getConfig().getBoolean(gp.getGame().getName() + ".bed"))
+            {
+                event.setCancelled(true);
+            }
         }
     }
 
@@ -912,6 +922,29 @@ public class GameListener implements Listener
             double pitch = Game.getConfig().getDouble(game + ".spawns." + entry.getKey() + ".pitch");
 
             spawn = new Location(world, x, y, z, (float) yaw, (float) pitch);
+            locs.add(spawn);
+        }
+
+        return locs;
+    }
+
+    public ArrayList<Location> getBedLocs(String game)
+    {
+        Map<String, Object> sections = Game.getConfig().getConfigurationSection(game + ".spawns").getValues(false);
+        ArrayList<Location> locs = new ArrayList<>();
+
+        Location spawn = null;
+
+        for (Map.Entry entry : sections.entrySet())
+        {
+            World world = Bukkit.getWorld(Game.getConfig().getString(game + ".spawns." + entry.getKey() + ".bed.world"));
+
+            double x = Game.getConfig().getDouble(game + ".spawns." + entry.getKey() + ".bed.x");
+            double y = Game.getConfig().getDouble(game + ".spawns." + entry.getKey() + ".bed.y");
+            double z = Game.getConfig().getDouble(game + ".spawns." + entry.getKey() + ".bed.z");
+
+
+            spawn = new Location(world, x, y, z);
             locs.add(spawn);
         }
 

@@ -4,8 +4,7 @@ version: 1.0
 main: de.marvin2k0.bridgeplugin.Bridge
 commands:
   bw:
-    permission: bw.admin
+    permission:
   setlobby:
     permission: bw.setlobby
   lobby:
-    permission: bw.lobby

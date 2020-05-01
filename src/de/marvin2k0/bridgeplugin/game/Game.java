@@ -6,9 +6,11 @@ import de.marvin2k0.bridgeplugin.listener.GameListener;
 import de.marvin2k0.bridgeplugin.utils.TextUtils;
 import de.marvin2k0.bridgeplugin.utils.Title;
 import org.bukkit.*;
+import org.bukkit.block.Chest;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -17,6 +19,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scoreboard.*;
+import org.bukkit.util.Vector;
 
 import java.io.File;
 import java.io.IOException;
@@ -130,7 +133,6 @@ public class Game implements Listener
             resetBlocks();
             reset();
             win(activeTeams.get(0));
-            System.out.println("win wiel nur noch ein team");
             return;
         }
         else if (activeTeams.size() == 0)
@@ -147,6 +149,24 @@ public class Game implements Listener
         GameListener.des.clear();
         ArrayList<Location> locs = new ArrayList<>();
 
+        if (getConfig().isSet(getName() + ".chest"))
+        {
+            System.out.println("reset chest");
+            double x = getConfig().getDouble(getName() + ".chest.x");
+            double y = getConfig().getDouble(getName() + ".chest.y");
+            double z = getConfig().getDouble(getName() + ".chest.z");
+            String world = getConfig().getString(getName() + ".chest.world");
+
+            System.out.println(Bukkit.getWorld(world).getBlockAt(new Location(Bukkit.getWorld(world), x, y - 1, z)).getType());
+
+            if (Bukkit.getWorld(world).getBlockAt(new Location(Bukkit.getWorld(world), x, y, z)).getType() == Material.CHEST)
+            {
+                System.out.println("is chest");
+                Chest chest = (Chest) Bukkit.getWorld(world).getBlockAt(new Location(Bukkit.getWorld(world), x, y, z)).getState();
+                chest.getInventory().setContents(new ItemStack[]{});
+            }
+        }
+
         try
         {
 
@@ -158,7 +178,6 @@ public class Game implements Listener
                 {
                     Game.getConfig().set(getName() + ".spawns." + entry.getKey() + ".points", 0);
                     Game.saveConfig();
-                    System.out.println("points to 0");
                 }
             }
         }
@@ -255,6 +274,9 @@ public class Game implements Listener
 
                     for (String str : p)
                     {
+                        if (Bukkit.getPlayer(str) == null)
+                            continue;
+
                         GamePlayer gp = Bridge.gamePlayers.get(Bukkit.getPlayer(str));
                         gp.setInLobby(false);
 
@@ -278,8 +300,6 @@ public class Game implements Listener
                                 {
                                     e.printStackTrace();
                                 }
-
-                                System.out.println(entry2.getKey() + " " + members.size() + "/" + (getMode().getPlayersPerTeam()));
 
                                 if (members.size() < (getMode().getPlayersPerTeam()))
                                 {
@@ -306,7 +326,6 @@ public class Game implements Listener
                                     gp.getPlayer().setPlayerListName(color + gp.getPlayer().getName());
                                     gp.getPlayer().sendMessage(TextUtils.get("joinedteam").replace("%team%", entry2.getKey()));
                                     gp.getPlayer().closeInventory();
-                                    System.out.println(gp.getPlayer() + " hatt kein team jetzt in " + entry2.getKey());
 
                                     break;
                                 }
@@ -363,7 +382,7 @@ public class Game implements Listener
 
                         Location loc = new Location(Bukkit.getWorld(world), x, y, z);
 
-                        Bukkit.getWorld(world).dropItemNaturally(loc, new ItemStack(Material.IRON_INGOT));
+                        Bukkit.getWorld(world).dropItem(loc.add(0.5, 1, 0.5), new ItemStack(Material.IRON_INGOT)).setVelocity(new Vector(0, 0, 0));
                     }
 
                     checkWin("iron spawner 2");
@@ -394,7 +413,7 @@ public class Game implements Listener
 
                         Location loc = new Location(Bukkit.getWorld(world), x, y, z);
 
-                        Bukkit.getWorld(world).dropItemNaturally(loc, new ItemStack(Material.GOLD_INGOT));
+                        Bukkit.getWorld(world).dropItem(loc.add(0.5, 1, 0.5), new ItemStack(Material.GOLD_INGOT)).setVelocity(new Vector(0, 0, 0));
                     }
                 }
             }, Long.valueOf(TextUtils.get("golddur", false)) * 20, Long.valueOf(TextUtils.get("golddur", false)) * 20);
@@ -422,7 +441,7 @@ public class Game implements Listener
 
                         Location loc = new Location(Bukkit.getWorld(world), x, y, z);
 
-                        Bukkit.getWorld(world).dropItemNaturally(loc, new ItemStack(Material.DIAMOND));
+                        Bukkit.getWorld(world).dropItem(loc.add(0.5, 1, 0.5), new ItemStack(Material.DIAMOND)).setVelocity(new Vector(0, 0, 0));
                     }
                     checkWin("diamond spawner");
                 }
@@ -432,8 +451,12 @@ public class Game implements Listener
 
     public void resetBlocks()
     {
+
         for (Location loc : getBlock())
             loc.getBlock().setType(Material.AIR);
+
+        getConfig().set(getName() + ".blocks", null);
+        saveConfig();
         /*
         for (Location loc : bloecke)
         {
@@ -457,6 +480,9 @@ public class Game implements Listener
 
         for (String str : players)
         {
+            if (Bukkit.getPlayer(str) == null)
+                continue;
+
             Bukkit.getPlayer(str).sendMessage(msg);
         }
     }
@@ -553,15 +579,18 @@ public class Game implements Listener
 
     public static void join(String game, Player player)
     {
-        /* When already in the game */
-
         GamePlayer gp = new GamePlayer(player, Game.getGameFromName(game));
         gp.setInLobby(true);
 
         Bridge.gamePlayers.put(player, gp);
 
         List<String> players = getConfig().getStringList(game + ".players");
-        players.add(player.getName());
+
+        if (!players.contains(player.getName()))
+        {
+            players.add(player.getName());
+        }
+
         getConfig().set(game + ".players", players);
 
         saveConfig();
@@ -582,12 +611,28 @@ public class Game implements Listener
             gameObj.start();
     }
 
-    public static void leave(String game, Player player)
+    public static void leave(String game, OfflinePlayer player)
     {
         Bridge.gamePlayers.remove(player);
+        if (player == null)
+        {
+            return;
+        }
+
+        if (!player.hasPlayedBefore())
+            return;
 
         List<String> players = getConfig().getStringList(game + ".players");
-        players.remove(player.getName());
+        List<String> players2 = players;
+
+        for (String str : players)
+        {
+            if (!players.contains(str))
+                players2.add(str);
+        }
+
+        players = players2;
+
         getConfig().set(game + ".players", players);
 
         Map<String, Object> section = Game.getConfig().getConfigurationSection(game + ".spawns").getValues(false);
@@ -605,12 +650,19 @@ public class Game implements Listener
             }
         }
 
-        player.setDisplayName(player.getName());
-        player.setPlayerListName(player.getName());
-        player.getInventory().clear();
-        player.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
-        player.setGameMode(GameMode.SURVIVAL);
-        player.chat("/" + TextUtils.get("leavecommand", false));
+        if (player.isOnline())
+        {
+            Player p = Bukkit.getPlayer(player.getName());
+
+            players.remove(player.getName());
+            p.setDisplayName(player.getName());
+            p.setPlayerListName(player.getName());
+            p.getInventory().clear();
+            p.getInventory().setArmorContents(null);
+            p.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
+            p.setGameMode(GameMode.SURVIVAL);
+            p.chat("/" + TextUtils.get("leavecommand", false));
+        }
 
         saveConfig();
     }
@@ -732,7 +784,30 @@ public class Game implements Listener
 
         for (Map.Entry<String, Object> entry : section.entrySet())
         {
-            inv.setItem(Integer.valueOf(entry.getKey()), new ItemStack(Material.getMaterial(entry.getValue().toString())));
+            int amount = Bridge.plugin.config.getInt("kit." + entry.getKey() + ".amount");
+            String type = Bridge.plugin.config.getString("kit." + entry.getKey() + ".type");
+
+            if (Material.getMaterial(type) != null)
+            {
+                ItemStack item = new ItemStack(Material.getMaterial(type));
+                item.setAmount(amount);
+
+                if (!Bridge.plugin.config.isSet("kit." + entry.getKey() + "." + type + ".ench"))
+                {
+                    inv.setItem(Integer.valueOf(entry.getKey()), item);
+                    continue;
+                }
+
+
+                Map<String, Object> ench = Bridge.plugin.config.getConfigurationSection("kit." + entry.getKey() + "." + type + ".ench").getValues(false);
+
+                for (Map.Entry<String, Object> eintrag : ench.entrySet())
+                {
+                    item.addUnsafeEnchantment(Enchantment.getByName(eintrag.getKey()), Integer.valueOf(eintrag.getValue().toString()));
+                }
+
+                inv.setItem(Integer.valueOf(entry.getKey()), item);
+            }
         }
 
         player.updateInventory();
@@ -740,18 +815,42 @@ public class Game implements Listener
 
     public static void getItemss(Player player)
     {
-        if (Bridge.plugin.config.isSet("kit"))
+        if (!Bridge.plugin.config.isSet("kit"))
+            return;
+
+        Map<String, Object> section = Bridge.plugin.config.getConfigurationSection("kit").getValues(false);
+        Inventory inv = player.getInventory();
+
+        for (Map.Entry<String, Object> entry : section.entrySet())
         {
-            Map<String, Object> section = Bridge.plugin.config.getConfigurationSection("kit").getValues(false);
-            Inventory inv = Bukkit.createInventory(null, 36);
+            int amount = Bridge.plugin.config.getInt("kit." + entry.getKey() + ".amount");
+            String type = Bridge.plugin.config.getString("kit." + entry.getKey() + ".type");
 
-            for (Map.Entry<String, Object> entry : section.entrySet())
+
+            if (Material.getMaterial(type) != null)
             {
-                inv.setItem(Integer.valueOf(entry.getKey()), new ItemStack(Material.getMaterial(entry.getValue().toString())));
-            }
+                ItemStack item = new ItemStack(Material.getMaterial(type));
+                item.setAmount(amount);
 
-            player.getInventory().setContents(inv.getContents());
+                if (!Bridge.plugin.config.isSet("kit." + entry.getKey() + "." + type + ".ench"))
+                {
+                    inv.setItem(Integer.valueOf(entry.getKey()), item);
+                    continue;
+                }
+
+
+                Map<String, Object> ench = Bridge.plugin.config.getConfigurationSection("kit." + entry.getKey() + "." + type + ".ench").getValues(false);
+
+                for (Map.Entry<String, Object> eintrag : ench.entrySet())
+                {
+                    item.addUnsafeEnchantment(Enchantment.getByName(eintrag.getKey()), Integer.valueOf(eintrag.getValue().toString()));
+                }
+
+                inv.setItem(Integer.valueOf(entry.getKey()), item);
+            }
         }
+
+        player.updateInventory();
     }
 
     public static boolean exists(String name)

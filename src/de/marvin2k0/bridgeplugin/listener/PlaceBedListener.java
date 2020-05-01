@@ -27,7 +27,7 @@ public class PlaceBedListener implements Listener
                 String game = Bridge.placeBed.get(player).split(":")[0];
                 String team = Bridge.placeBed.get(player).split(":")[1];
 
-                Location loc = player.getLocation();
+                Location loc = event.getBlock().getLocation();
 
                 String world = loc.getWorld().getName();
                 double x = loc.getX();

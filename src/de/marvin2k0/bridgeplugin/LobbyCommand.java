@@ -68,6 +68,9 @@ public class LobbyCommand implements CommandExecutor
 
             location = new Location(world, x, y, z, (float) yaw, (float) pitch);
 
+            if (Bridge.gamePlayers.get(player) != null)
+                Bridge.gamePlayers.get(player).getGame().leave(Bridge.gamePlayers.get(player).getGame().getName(), player);
+
             player.teleport(location);
 
             return true;

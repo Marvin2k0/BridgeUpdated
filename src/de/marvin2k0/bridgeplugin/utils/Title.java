@@ -28,8 +28,11 @@ public class Title extends Reflection
                     getNMSClass("PacketPlayOutTitle").getDeclaredClasses()[0].getField("SUBTITLE").get(null), chatsTitle,
                     fadeInTime, showTime, fadeOutTime);
 
-            sendPacket(player, packet);
-            sendPacket(player, timingPacket);
+            if (player != null)
+            {
+                sendPacket(player, packet);
+                sendPacket(player, timingPacket);
+            }
         }
         catch (Exception e)
         {

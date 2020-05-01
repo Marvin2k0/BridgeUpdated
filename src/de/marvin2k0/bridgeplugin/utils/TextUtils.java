@@ -74,6 +74,7 @@ public class TextUtils
         getConfig().addDefault("scoreboard_title", "&6Points");
         getConfig().addDefault("inventoryfull", "&7Your inventory is full!");
         getConfig().addDefault("beddestroyed", "&7Team %team%'s bed was destroyed");
+        getConfig().addDefault("ownbed",  "&cWhy would you wanna do that?");
 
         plugin.saveConfig();
     }

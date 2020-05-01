@@ -7,12 +7,15 @@ import de.marvin2k0.bridgeplugin.listener.PlaceBedListener;
 import de.marvin2k0.bridgeplugin.listener.SignListener;
 import de.marvin2k0.bridgeplugin.utils.TextUtils;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -22,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class Bridge extends JavaPlugin implements CommandExecutor
@@ -55,10 +59,28 @@ public class Bridge extends JavaPlugin implements CommandExecutor
         for (Map.Entry<String, Object> entry : section.entrySet())
         {
             if (!Game.games.contains(entry.getKey()))
+            {
                 Game.games.add(entry.getKey());
+                List<String> players = Game.getConfig().getStringList(entry.getKey() + ".players");
+                List<String> players2 = new ArrayList<>();
+
+                for (String p : players)
+                {
+                    if (!Bukkit.getOfflinePlayer(p).hasPlayedBefore())
+                        continue;
+
+                    if (!players2.contains(p))
+                        players2.add(p);
+                }
+
+                Game.getConfig().set(entry.getKey() + ".players", players2);
+                Game.saveConfig();
+            }
         }
 
         TextUtils.setUpConfig(this);
+
+
     }
 
     @Override
@@ -68,13 +90,32 @@ public class Bridge extends JavaPlugin implements CommandExecutor
         {
             for (String str : Game.games)
             {
+                List<String> players = Game.getConfig().getStringList(str + ".players");
+                List<String> players2 = new ArrayList<>();
+
+                for (String p : players)
+                {
+                    if (!Bukkit.getOfflinePlayer(p).hasPlayedBefore())
+                        continue;
+
+                    if (!players2.contains(p))
+                        players2.add(p);
+                }
+
+                Game.getConfig().set(str + ".players", players2);
+                Game.saveConfig();
+
                 Game game = Game.getGameFromName(str);
                 game.reset();
 
                 for (GamePlayer gp : game.getPlayers())
                 {
-                    Bukkit.getConsoleSender().sendMessage(game.getName() + ": " + game.getPlayers());
+                    if (gp.getPlayer() == null)
+                        continue;
+
+                    System.out.println(gp.getPlayer().getName());
                     Game.leave(game.getName(), gp.getPlayer());
+
                 }
 
                 Map<String, Object> section = Game.getConfig().getConfigurationSection(game.getName() + ".spawns").getValues(false);
@@ -88,7 +129,10 @@ public class Bridge extends JavaPlugin implements CommandExecutor
 
             Game.saveConfig();
         }
-        catch (Exception e) { e.printStackTrace();}
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
     }
 
     public void freeze(Player player)
@@ -143,6 +187,28 @@ public class Bridge extends JavaPlugin implements CommandExecutor
         if (args.length == 0)
         {
             player.sendMessage("§cInvalid command!");
+
+            return true;
+        }
+
+        if (args[0].equalsIgnoreCase("leave"))
+        {
+            if (!gamePlayers.containsKey(player))
+            {
+                player.sendMessage(TextUtils.get("notingame"));
+
+                return true;
+            }
+
+            Game.leave(gamePlayers.get(player).getGame().getName(), player);
+            gamePlayers.remove(player);
+
+            return true;
+        }
+
+        if (!player.hasPermission("bw.admin"))
+        {
+            player.sendMessage(TextUtils.get("noperm"));
 
             return true;
         }
@@ -250,21 +316,6 @@ public class Bridge extends JavaPlugin implements CommandExecutor
             }
         }
 
-        else if (args[0].equalsIgnoreCase("leave"))
-        {
-            if (!gamePlayers.containsKey(player))
-            {
-                player.sendMessage(TextUtils.get("notingame"));
-
-                return true;
-            }
-
-            Game.leave(gamePlayers.get(player).getGame().getName(), player);
-            gamePlayers.remove(player);
-
-            return true;
-        }
-
         else if (args[0].equalsIgnoreCase("start"))
         {
             if (!gamePlayers.containsKey(player))
@@ -288,8 +339,20 @@ public class Bridge extends JavaPlugin implements CommandExecutor
 
             for (ItemStack item : player.getInventory().getContents())
             {
-                if (item != null)
-                    config.set("kit." + i, item.getType().toString());
+                String path = item == null ? "" : item.getType().toString();
+                System.out.println(path + " in " + i + " " + path);
+
+                config.set("kit." + i + ".type", path);
+                config.set("kit." + i + ".amount", item == null ? 0 : item.getAmount());
+
+                if (item != null && !(item.getEnchantments().isEmpty()))
+                {
+                    for (Map.Entry<Enchantment, Integer> ench : item.getEnchantments().entrySet())
+                    {
+                        config.set("kit." + i + "." + path + ".ench." + ench.getKey().getName(), ench.getValue());
+                    }
+                }
+
                 i++;
             }
 
@@ -352,6 +415,32 @@ public class Bridge extends JavaPlugin implements CommandExecutor
             placeSpawner.put(player, args[1]);
 
             return true;
+        }
+
+        else if (args[0].equalsIgnoreCase("chest"))
+        {
+            if (args.length != 2)
+            {
+                player.sendMessage("§cUsage: /bw chest <game>");
+                return true;
+            }
+
+            if (!Game.exists(args[1]))
+            {
+                player.sendMessage(TextUtils.get("nogame"));
+                return true;
+            }
+
+            String game = args[1];
+            Location loc = player.getLocation();
+            Game.getConfig().set(game + ".chest.world", loc.getWorld().getName());
+            Game.getConfig().set(game + ".chest.x", loc.getX());
+            Game.getConfig().set(game + ".chest.y", loc.getY());
+            Game.getConfig().set(game + ".chest.z", loc.getZ());
+
+            Game.saveConfig();
+            loc.getWorld().getBlockAt(loc).setType(Material.CHEST);
+            player.sendMessage("§aChest has been set!");
         }
 
         player.sendMessage("§cInvalid command!");
