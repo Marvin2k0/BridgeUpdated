@@ -151,19 +151,22 @@ public class Game implements Listener
 
         if (getConfig().isSet(getName() + ".chest"))
         {
-            System.out.println("reset chest");
-            double x = getConfig().getDouble(getName() + ".chest.x");
-            double y = getConfig().getDouble(getName() + ".chest.y");
-            double z = getConfig().getDouble(getName() + ".chest.z");
-            String world = getConfig().getString(getName() + ".chest.world");
+            Map<String, Object> section = Game.getConfig().getConfigurationSection(getName() + ".spawns").getValues(false);
 
-            System.out.println(Bukkit.getWorld(world).getBlockAt(new Location(Bukkit.getWorld(world), x, y - 1, z)).getType());
-
-            if (Bukkit.getWorld(world).getBlockAt(new Location(Bukkit.getWorld(world), x, y, z)).getType() == Material.CHEST)
+            for (Map.Entry<String, Object> entry : section.entrySet())
             {
-                System.out.println("is chest");
-                Chest chest = (Chest) Bukkit.getWorld(world).getBlockAt(new Location(Bukkit.getWorld(world), x, y, z)).getState();
-                chest.getInventory().setContents(new ItemStack[]{});
+                System.out.println(entry.getKey());
+
+                double x = getConfig().getDouble(getName() + ".spawns." + entry.getKey() + ".chest.x");
+                double y = getConfig().getDouble(getName() + ".spawns." + entry.getKey() + ".chest.y");
+                double z = getConfig().getDouble(getName() + ".spawns." + entry.getKey() + ".chest.z");
+                String world = getConfig().getString(getName() + ".spawns." + entry.getKey() + ".chest.world");
+
+                if (world != null && Bukkit.getWorld(world).getBlockAt(new Location(Bukkit.getWorld(world), x, y, z)).getType() == Material.CHEST)
+                {
+                    Chest chest = (Chest) Bukkit.getWorld(world).getBlockAt(new Location(Bukkit.getWorld(world), x, y, z)).getState();
+                    chest.getInventory().setContents(new ItemStack[]{});
+                }
             }
         }
 
@@ -650,19 +653,16 @@ public class Game implements Listener
             }
         }
 
-        if (player.isOnline())
-        {
-            Player p = Bukkit.getPlayer(player.getName());
+        Player p = Bukkit.getPlayer(player.getName());
 
-            players.remove(player.getName());
-            p.setDisplayName(player.getName());
-            p.setPlayerListName(player.getName());
-            p.getInventory().clear();
-            p.getInventory().setArmorContents(null);
-            p.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
-            p.setGameMode(GameMode.SURVIVAL);
-            p.chat("/" + TextUtils.get("leavecommand", false));
-        }
+        players.remove(player.getName());
+        p.setDisplayName(player.getName());
+        p.setPlayerListName(player.getName());
+        p.getInventory().clear();
+        p.getInventory().setArmorContents(null);
+        p.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
+        p.setGameMode(GameMode.SURVIVAL);
+        p.chat("/" + TextUtils.get("leavecommand", false));
 
         saveConfig();
     }

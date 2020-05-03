@@ -458,9 +458,9 @@ public class GameListener implements Listener
         s.setItem(43, createItem(Material.CHAINMAIL_BOOTS, 1, new Enchantment[]{Enchantment.PROTECTION_ENVIRONMENTAL}, new int[]{1}, "§l§b2 dia"));
         s.setItem(41, createItem(Material.STONE_AXE, 1, new Enchantment[]{Enchantment.DIG_SPEED}, new int[]{1}, "§l§64 gold"));
         s.setItem(40, createItem(Material.WOOD_AXE, 1, new Enchantment[]{Enchantment.DIG_SPEED}, new int[]{1}, "§l§f5 iron"));
-        s.setItem(39, createItem(Material.GOLD_PICKAXE, 1, new Enchantment[]{Enchantment.DIG_SPEED}, new int[]{1}, "3 dia"));
+        s.setItem(39, createItem(Material.GOLD_PICKAXE, 1, new Enchantment[]{Enchantment.DIG_SPEED}, new int[]{1}, "§l§b3 dia"));
         s.setItem(38, createItem(Material.STONE_PICKAXE, 1, new Enchantment[]{Enchantment.DIG_SPEED}, new int[]{1}, "§l§64 gold"));
-        s.setItem(37, createItem(Material.WOOD_AXE, 1, new Enchantment[]{Enchantment.DIG_SPEED}, new int[]{1}, "§l§f5 iron"));
+        s.setItem(37, createItem(Material.WOOD_PICKAXE, 1, new Enchantment[]{Enchantment.DIG_SPEED}, new int[]{1}, "§l§64 gold"));
 
         return s;
     }

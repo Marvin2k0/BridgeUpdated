@@ -72,6 +72,8 @@ public class LobbyCommand implements CommandExecutor
                 Bridge.gamePlayers.get(player).getGame().leave(Bridge.gamePlayers.get(player).getGame().getName(), player);
 
             player.teleport(location);
+            player.getInventory().setArmorContents(null);
+            player.getInventory().clear();
 
             return true;
         }

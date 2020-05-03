@@ -419,9 +419,10 @@ public class Bridge extends JavaPlugin implements CommandExecutor
 
         else if (args[0].equalsIgnoreCase("chest"))
         {
-            if (args.length != 2)
+            System.out.println("chest");
+            if (args.length != 3)
             {
-                player.sendMessage("§cUsage: /bw chest <game>");
+                player.sendMessage("§cUsage: /bw chest <game> <team>");
                 return true;
             }
 
@@ -431,16 +432,24 @@ public class Bridge extends JavaPlugin implements CommandExecutor
                 return true;
             }
 
+            if (!Game.getConfig().isSet(args[1] + ".spawns." + args[2]))
+            {
+                player.sendMessage("§cThis team does not exist!");
+                return true;
+            }
+
             String game = args[1];
+            String team = args[2];
             Location loc = player.getLocation();
-            Game.getConfig().set(game + ".chest.world", loc.getWorld().getName());
-            Game.getConfig().set(game + ".chest.x", loc.getX());
-            Game.getConfig().set(game + ".chest.y", loc.getY());
-            Game.getConfig().set(game + ".chest.z", loc.getZ());
+            Game.getConfig().set(game + ".spawns." + team + ".chest.world", loc.getWorld().getName());
+            Game.getConfig().set(game + ".spawns." + team + ".chest.x", loc.getX());
+            Game.getConfig().set(game + ".spawns." + team + ".chest.y", loc.getY());
+            Game.getConfig().set(game + ".spawns." + team + ".chest.z", loc.getZ());
 
             Game.saveConfig();
             loc.getWorld().getBlockAt(loc).setType(Material.CHEST);
             player.sendMessage("§aChest has been set!");
+            return true;
         }
 
         player.sendMessage("§cInvalid command!");
